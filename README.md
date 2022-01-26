@@ -6,8 +6,10 @@ https://sci.bban.top/pdf/10.1016/j.actpsy.2018.08.016.pdf#view=FitH
 ## TODO
 
 - [ ] Validation per epoch
+- [ ] ipywidgets modification for distribution parameters
 - [ ] Training regime similar to humans (try with starting with pre-trained?)
 - [ ] Convolution visualization integration: https://jacobgil.github.io/deeplearning/filter-visualizations, https://github.com/fossasia/visdom
+- [ ] Hosting on blog solutions?
 
 ## Hypothesis
 

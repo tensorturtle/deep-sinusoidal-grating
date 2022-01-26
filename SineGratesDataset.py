@@ -30,6 +30,7 @@ def mask_circle_solid(pil_img, background_color, blur_radius, offset=0):
     mask = mask.filter(ImageFilter.GaussianBlur(blur_radius))
 
     return Image.composite(pil_img, background, mask)
+    #return pil_img
 
 def circular_sinegrate(frequency, rotation, image_size=256):
     '''

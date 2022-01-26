@@ -5,8 +5,9 @@ https://sci.bban.top/pdf/10.1016/j.actpsy.2018.08.016.pdf#view=FitH
 
 ## TODO
 
-- [ ] Validation per epoch
+- [x] Validation per epoch
 - [ ] ipywidgets modification for distribution parameters
+- [ ] Visualization 
 - [ ] Training regime similar to humans (try with starting with pre-trained?)
 - [ ] Convolution visualization integration: https://jacobgil.github.io/deeplearning/filter-visualizations, https://github.com/fossasia/visdom
 - [ ] Hosting on blog solutions?
@@ -23,3 +24,7 @@ Artificial neural networks (ANNs) will excel in categorizing sinusoidal gratings
 4. Train a deep ANN on the dataset with more training data.
 5. Test the ANN on the dataset.
 6. Compare the performance of the ANN to humans (data obtained from literature)
+
+## Exploration Notes
+
+AlexNet-like NN performance is sensitive to random seed. Sometimes, the nn won't even learn.

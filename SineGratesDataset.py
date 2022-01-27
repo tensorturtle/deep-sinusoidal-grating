@@ -6,6 +6,7 @@ from scipy import ndimage
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw, ImageFilter
+import io
 
 def y_sinusoid(size=(256,256), frequency=4):
     '''
@@ -70,7 +71,12 @@ def generate_params(mean=[30,50], cov=[[10,0],[0,150]], size=100, categorization
 
 
 class SineGrates(Dataset):
-    def __init__(self, cat_scheme='rb', visual_angle='5', length=100, image_size=(256,256), transform=None):
+    def __init__(self, cat_scheme='rb', 
+                 dist_params = None,
+                 visual_angle='5', 
+                 length=100, 
+                 image_size=(256,256), 
+                 transform=None):
         '''
         PyTorch Sinusoidal Grating image dataset generator
         
@@ -80,46 +86,45 @@ class SineGrates(Dataset):
         image_size (int,int): pixel size of output image
         '''
         self.cat_scheme=cat_scheme 
+        #self.dist_params = dist_params
         self.visual_angle = visual_angle
         self.length = length 
         self.image_size = image_size
         self.transform = transform
-        if cat_scheme == 'rb':
-            self.a_means = [
-                [30,50],
-                [50,70]]
-            self.b_means = [
-                [50,30],
-                [70,50]]
-            self.a_covariances = [
-                [[10,0],[0,150]],
-                [[150,0],[0,10]]]
-            self.b_covariances = [
-                [[10,0],[0,150]],
-                [[150,0],[0,10]]]
-            # in 'rb' condition, the parameters are composed of two distributions.
-            # here we generate paramers for each of the two and fuse them into one
-            self.a1_params = generate_params(mean=self.a_means[0], cov=self.a_covariances[0], size=self.length//2, categorization_scheme=self.cat_scheme)
-            self.a2_params = generate_params(mean=self.a_means[1], cov=self.a_covariances[1], size=self.length//2, categorization_scheme=self.cat_scheme)
-            self.a_params = np.vstack((self.a1_params, self.a2_params))
-            
-            self.b1_params = generate_params(mean=self.b_means[0], cov=self.b_covariances[0], size=self.length//2, categorization_scheme=self.cat_scheme)
-            self.b2_params = generate_params(mean=self.b_means[1], cov=self.b_covariances[1], size=self.length//2, categorization_scheme=self.cat_scheme)
-            self.b_params = np.vstack((self.b1_params, self.b2_params))
-            
-        elif cat_scheme == 'ii':
-            self.a_means = [40,50]
-            self.b_means = [60,50]
-            self.a_covariances = [[10,0],[0,280]]
-            self.b_covariances = [[10,0],[0,280]]
-            
-            self.a_params = generate_params(mean=self.a_means, cov=self.a_covariances, size=self.length, categorization_scheme=self.cat_scheme)
-            self.b_params = generate_params(mean=self.b_means, cov=self.b_covariances, size=self.length, categorization_scheme=self.cat_scheme)
+        
+        if self.cat_scheme == 'rb':
+            assert len(np.array(dist_params['a_means']).shape) == 2, "Rule-based scheme's 'a_means' should be a 2-d list"
+            assert len(np.array(dist_params['b_means']).shape) == 2, "Rule-based scheme's 'b_means' should be a 2-d list"
+            assert len(np.array(dist_params['a_covariances']).shape) == 3, "Rule-based scheme's 'a_covariances' should be a 3-d list"
+            assert len(np.array(dist_params['b_covariances']).shape) == 3, "Rule-based scheme's 'b_covariances' should be a 3-d list"
+        elif self.cat_scheme == 'ii':
+            assert len(np.array(dist_params['a_means']).shape) == 1, "Rule-based scheme's 'a_means' should be a 1-d list"
+            assert len(np.array(dist_params['b_means']).shape) == 1, "Rule-based scheme's 'b_means' should be a 1-d list"
+            assert len(np.array(dist_params['a_covariances']).shape) == 2, "Rule-based scheme's 'a_covariances' should be a 2-d list"
+            assert len(np.array(dist_params['b_covariances']).shape) == 2, "Rule-based scheme's 'b_covariances' should be a 2-d list"
+        
+        self.parse_params(dist_params)
         
         # label 0 refers to 'a' condition
         # label 1 refers to 'b' condition
         self.a_dataset = [(0, self.get_image(parameters[0], parameters[1])) for parameters in self.a_params]
         self.b_dataset = [(1, self.get_image(parameters[0], parameters[1])) for parameters in self.b_params]
+    
+    def parse_params(self, dist_params):
+        if self.cat_scheme == 'rb':
+            # in 'rb' condition, the parameters are composed of two distributions.
+            # here we generate paramers for each of the two and fuse them into one
+            self.a1_params = generate_params(mean=dist_params['a_means'][0], cov=dist_params['a_covariances'][0], size=self.length//2, categorization_scheme=self.cat_scheme)
+            self.a2_params = generate_params(mean=dist_params['a_means'][1], cov=dist_params['a_covariances'][1], size=self.length//2, categorization_scheme=self.cat_scheme)
+            self.a_params = np.vstack((self.a1_params, self.a2_params))
+            
+            self.b1_params = generate_params(mean=dist_params['b_means'][0], cov=dist_params['b_covariances'][0], size=self.length//2, categorization_scheme=self.cat_scheme)
+            self.b2_params = generate_params(mean=dist_params['b_means'][1], cov=dist_params['b_covariances'][1], size=self.length//2, categorization_scheme=self.cat_scheme)
+            self.b_params = np.vstack((self.b1_params, self.b2_params))
+            
+        elif self.cat_scheme == 'ii':
+            self.a_params = generate_params(mean=dist_params['a_means'], cov=dist_params['a_covariances'], size=self.length, categorization_scheme=self.cat_scheme)
+            self.b_params = generate_params(mean=dist_params['b_means'], cov=dist_params['b_covariances'], size=self.length, categorization_scheme=self.cat_scheme)
     
     def get_image(self, frequency, orientation):
         freq = float(frequency) * float(self.visual_angle)
@@ -135,6 +140,59 @@ class SineGrates(Dataset):
         if self.transform is not None:
             fetched_data[1] = self.transform(fetched_data[1])
         return fetched_data
+    
+    def set_dist_params(self, new_dist_params):
+        '''
+        Use this setter function to update self.dist_params after instantiating class. 
+        Used for interactive distribution parameter setting via ipywidgets
+        '''
+        self.parse_params(new_dist_params)
+    
+    def interact_dist_params(self):
+        '''
+        Return figure representing the distribution. Used for interactive parameter setting via ipywidgets
+        '''
+        pass
+    def plot_final(self):
+        '''
+        Return figure representing the distribution of final dataset
+        
+        Usage:
+        
+        plt.show(dataset.plot_final())
+        
+            where
+            dataset: an instance of this dataset class
+        '''
+        #plt.rcParams['figure.figsize'] = (5,5)
+        if self.cat_scheme == 'rb':
+            plt_figure = plt.figure(figsize=(5,5))
+            #axarr = plt_figure.add_subplot(1,1,1)
+            plt.scatter(self.a1_params[:,0], self.a1_params[:,1], s=60, marker='+', color='black')
+            plt.scatter(self.a2_params[:,0], self.a2_params[:,1], s=60, marker='+', color='black')
+            plt.scatter(self.b1_params[:,0], self.b1_params[:,1], facecolors='none', edgecolors='gray')
+            plt.scatter(self.b2_params[:,0], self.b2_params[:,1], facecolors='none', edgecolors='gray')
+            plt.axis([0.0, 4.0, 0.0, 1.6])
+            plt.yticks(np.arange(0, 2.1, 0.5))
+            plt.xticks(np.arange(0,4.1,1))
+        elif self.cat_scheme == 'ii':
+            plt_figure = plt.figure(figsize=(5,5))
+            plt.scatter(self.a_params[:,0], self.a_params[:,1], s=60, marker='+', color='black')
+            plt.scatter(self.b_params[:,0], self.b_params[:,1], facecolors='none', edgecolors='gray')
+            plt.axis([0.0, 4.0, 0.0, 1.6])
+            plt.yticks(np.arange(0, 2.1, 0.5))
+            plt.xticks(np.arange(0,4.1,1))
+        else:
+            print(f"Category type 'self.cat_scheme': {self.cat_scheme} is not supported.")
+            
+        fig = plt.figure()
+        fig.canvas.draw()
+        #data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        #data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        
+        return fig
+
+            
 
 if __name__=="__main__":
     dataset = SineGrates(cat_scheme='rb', length=200)

@@ -61,7 +61,6 @@ User=deploy
 WorkingDirectory=/home/deploy/
 Restart=always
 RestartSec=10
-```
 
 [Install]
 WantedBy=multi-user.target

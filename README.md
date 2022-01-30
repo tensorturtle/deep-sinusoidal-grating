@@ -69,10 +69,13 @@ WantedBy=multi-user.target
 
 SCP the contents of this repo into /home/deploy/voila
 
+`sudo apt install libjpeg-dev zlib1g-dev` to install the necessary dependencies for Pillow
+
 ```
 python3 -m pip install -r requirements.txt
 ```
 
+Install pytorch from https://pytorch.org. On a system with <4GB of RAM, you might need to increase swap size.
 
 ## Hypothesis
 

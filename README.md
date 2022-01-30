@@ -69,6 +69,10 @@ WantedBy=multi-user.target
 
 SCP the contents of this repo into /home/deploy/voila
 
+```
+python3 -m pip install -r requirements.txt
+```
+
 
 ## Hypothesis
 

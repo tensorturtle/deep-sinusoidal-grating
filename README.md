@@ -5,6 +5,8 @@ https://sci.bban.top/pdf/10.1016/j.actpsy.2018.08.016.pdf#view=FitH
 
 ## Quickstart
 
+Start with the no-code beginner's tutorial at https://sine.tensorturtle.com.
+
 
 ## TODO
 

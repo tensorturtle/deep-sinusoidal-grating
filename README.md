@@ -57,7 +57,7 @@ Description=Voila
 [Service]
 Type=simple
 PIDFile=/run/voila.pid
-ExecStart=/usr/bin/python3 -m voila --no-browser --port=19999 --template=retro /home/deploy/voila/no_code_tutorial.ipynb
+ExecStart=/usr/bin/python3 -m voila --no-browser --template=retro --port=19999 --show_tracebacks=True --preheat_kernel=True --pool_size=3 /home/deploy/voila/no_code_tutorial.ipynb
 User=deploy
 WorkingDirectory=/home/deploy/
 Restart=always
@@ -66,6 +66,8 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 ```
+
+preheat_kernel massively reduces the loading time, at least for the first pool_size connections.
 
 SCP the contents of this repo into /home/deploy/voila
 

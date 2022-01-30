@@ -39,6 +39,33 @@ In the root directory of this repo:
 voila no_code_turorial.ipynb --template=retro
 ```
 
+### Deployment
+
+Caddyfile at /etc/caddy/Caddyfile
+```
+sine.tensorturtle.com {
+  reverse_proxy localhost:19999
+}
+
+Systemd service at /etc/systemd/system/voila.service
+
+```
+[Unit]
+Description=Voila
+
+[Service]
+Type=simple
+PIDFile=/run/voila.pid
+ExecStart=/usr/bin/python3 -m voila --no-browser --template=retro /home/deploy/no_code_tutorial.ipynb
+User=deploy
+WorkingDirectory=/home/deploy/
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
 ## Hypothesis
 
 Artificial neural networks (ANNs) will excel in categorizing sinusoidal gratings, becase they are defined by just two parameters: the frequency and rotation. Neural networks come into their own when there are a large (unknown) number of parameters, so this task should be trivial. However, I predict that whereas humans perform better on the 'rule-based' categorization, ANNs will perform better on the 'information-integration' categorization, because the 'information-integraion' categorization relies on a linear distinction between the two categories, whereas the 'rule-based' categorization relies on a non-linear (probably cubic?) distinction between the two categories.

@@ -1,4 +1,4 @@
-# deep-sinusoidal-grating
+# DeepSinusoidalGrating
 Exploratory analysis comparing deep artificial neural networks and humans in sinusoidal grating categorization task.
 
 https://sci.bban.top/pdf/10.1016/j.actpsy.2018.08.016.pdf#view=FitH

@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms as transforms
 
 import scipy.stats
 from scipy import ndimage
@@ -7,15 +8,29 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw, ImageFilter
 import io
+import random
+from pathlib import Path
+import os
+import shutil
 
-def y_sinusoid(size=(256,256), frequency=4):
+pil_to_tensor = transforms.Compose(
+    [transforms.PILToTensor(),
+     transforms.ConvertImageDtype(torch.float)
+    ])
+
+def show_img(image, **kwargs):
+    plt.figure()
+    plt.axis('off')
+    plt.imshow(image, cmap="Greys", **kwargs)
+
+def y_sinusoid(size=(256,256), frequency=4, phase_shift=0):
     '''
     Draw a sinusoidal grating that changes value across y axis
     '''
     x = np.arange(size[0])
     y = np.arange(size[1])
     X,Y = np.meshgrid(x,y)
-    Z = np.sin(2*np.pi * frequency * (Y/size[0]))
+    Z = np.sin(2*np.pi * frequency * (Y/size[0]) + phase_shift)
     return Z
 
 def mask_circle_solid(pil_img, background_color, blur_radius, offset=0):
@@ -33,15 +48,16 @@ def mask_circle_solid(pil_img, background_color, blur_radius, offset=0):
     return Image.composite(pil_img, background, mask)
     #return pil_img
 
-def circular_sinegrate(frequency, rotation, image_size=256):
+def circular_sinegrate(frequency, rotation, image_size=(256,256), phase_shift=0):
     '''
     Generate a circular sinusoidal grating.
     
     frequency (float) : frequency of the sinusoid
     rotation (float) : counterclockwise rotation of the sinusoid in degrees
+    phase_shift (float): move phase right/left. Radians 
     size (int,int) : size of the output image
     '''
-    np_sinegrate = y_sinusoid(image_size, frequency)
+    np_sinegrate = y_sinusoid(image_size, frequency, phase_shift)
     rotated_sinegrate = ndimage.rotate(np_sinegrate, rotation, reshape=False)
     pil_sinegrate = Image.fromarray(((rotated_sinegrate*127)+128).astype(np.uint8)) # convert [-1,1] to [0,255]
     return mask_circle_solid(pil_sinegrate, background_color=128, blur_radius=1, offset=18)
@@ -76,7 +92,8 @@ class SineGrates(Dataset):
                  visual_angle='5', 
                  length=100, 
                  image_size=(256,256), 
-                 transform=None):
+                 transform=None,
+                randomize_phase=True):
         '''
         PyTorch Sinusoidal Grating image dataset generator
         
@@ -91,6 +108,10 @@ class SineGrates(Dataset):
         self.length = length 
         self.image_size = image_size
         self.transform = transform
+        self.randomize_phase = randomize_phase
+        
+        #if dist_params is None:
+            
         
         if self.cat_scheme == 'rb':
             assert len(np.array(dist_params['a_means']).shape) == 2, "Rule-based scheme's 'a_means' should be a 2-d list"
@@ -105,10 +126,27 @@ class SineGrates(Dataset):
         
         self.parse_params(dist_params)
         
+    def save_dataset(self, path, extension='png'):
+        self.generate_dataset()
+        path = Path(path)
+        if os.path.exists(path/'A'):
+            shutil.rmtree(path/'A')
+        os.makedirs(path/'A')
+            
+        if os.path.exists(path/'B'):
+            shutil.rmtree(path/'B')
+        os.makedirs(path/'B')
+
+        for i, (label, pil_image) in enumerate(self.a_dataset):
+            pil_image.save(path/'A'/f'{i}.{extension}')
+        for i, (label, pil_image) in enumerate(self.b_dataset):
+            pil_image.save(path/'B'/f'{i}.{extension}')
+        
+    def generate_dataset(self):
         # label 0 refers to 'a' condition
         # label 1 refers to 'b' condition
-        self.a_dataset = [(0, self.get_image(parameters[0], parameters[1])) for parameters in self.a_params]
-        self.b_dataset = [(1, self.get_image(parameters[0], parameters[1])) for parameters in self.b_params]
+        self.a_dataset = [(0, self.get_image(parameters[0], parameters[1], randomize_phase=self.randomize_phase)) for parameters in self.a_params]
+        self.b_dataset = [(1, self.get_image(parameters[0], parameters[1], randomize_phase=self.randomize_phase)) for parameters in self.b_params]
     
     def parse_params(self, dist_params):
         if self.cat_scheme == 'rb':
@@ -126,10 +164,11 @@ class SineGrates(Dataset):
             self.a_params = generate_params(mean=dist_params['a_means'], cov=dist_params['a_covariances'], size=self.length, categorization_scheme=self.cat_scheme)
             self.b_params = generate_params(mean=dist_params['b_means'], cov=dist_params['b_covariances'], size=self.length, categorization_scheme=self.cat_scheme)
     
-    def get_image(self, frequency, orientation):
+    def get_image(self, frequency, orientation, randomize_phase=True):
         freq = float(frequency) * float(self.visual_angle)
         orientation = np.rad2deg(orientation)
-        img = circular_sinegrate(freq, orientation, image_size=self.image_size)
+        phase_shift = random.uniform(0, 2*np.pi) if randomize_phase else 0
+        img = circular_sinegrate(freq, orientation, image_size=self.image_size, phase_shift=phase_shift)
         return img
     
     def __len__(self):
@@ -148,11 +187,6 @@ class SineGrates(Dataset):
         '''
         self.parse_params(new_dist_params)
     
-    def interact_dist_params(self):
-        '''
-        Return figure representing the distribution. Used for interactive parameter setting via ipywidgets
-        '''
-        pass
     def plot_final(self):
         '''
         Return figure representing the distribution of final dataset

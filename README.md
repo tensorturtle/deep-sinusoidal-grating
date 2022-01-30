@@ -5,7 +5,6 @@ https://sci.bban.top/pdf/10.1016/j.actpsy.2018.08.016.pdf#view=FitH
 
 ## Quickstart
 
-Open the no-code dataset generation tool in binder: https://mybinder.org/v2/gh/tensorturtle/deep-sinusoidal-grating/HEAD?labpath=no_code_tutorial.ipynb
 
 ## TODO
 

@@ -57,7 +57,7 @@ Description=Voila
 [Service]
 Type=simple
 PIDFile=/run/voila.pid
-ExecStart=/usr/bin/python3 -m voila --no-browser --port=19999 --template=retro /home/deploy/no_code_tutorial.ipynb
+ExecStart=/usr/bin/python3 -m voila --no-browser --port=19999 --template=retro /home/deploy/voila/no_code_tutorial.ipynb
 User=deploy
 WorkingDirectory=/home/deploy/
 Restart=always
@@ -66,6 +66,9 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 ```
+
+SCP the contents of this repo into /home/deploy/voila
+
 
 ## Hypothesis
 

@@ -1,4 +1,4 @@
-# deep_sinusoidal_grating
+# Deep Sinusoidal Grating
 Exploratory analysis comparing deep artificial neural networks and humans in sinusoidal grating categorization task.
 
 https://sci.bban.top/pdf/10.1016/j.actpsy.2018.08.016.pdf#view=FitH
@@ -19,7 +19,7 @@ Start with the no-code beginner's tutorial at https://sine.tensorturtle.com.
 - [x] Count number of parameters
 - [x] Saveable dataset
 
-## No-Code Tutorial
+## No-Code Tutorial (Sinusoidal Gratings Generator)
 
 ### Development 
 

@@ -1,4 +1,7 @@
 # Deep Sinusoidal Grating
+
+[![Start web app (sine.tensorturtle.com)](https://github.com/tensorturtle/deep-sinusoidal-grating/actions/workflows/start_web_app.yml/badge.svg)](https://github.com/tensorturtle/deep-sinusoidal-grating/actions/workflows/start_web_app.yml)
+
 Exploratory analysis comparing deep artificial neural networks and humans in sinusoidal grating categorization task.
 
 https://sci.bban.top/pdf/10.1016/j.actpsy.2018.08.016.pdf#view=FitH

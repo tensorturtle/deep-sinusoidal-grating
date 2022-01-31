@@ -27,10 +27,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest
-    - name: Install curl
-      run: |
-          sudo apt install curl
+        pip install pytest requests
     - name: Test with pytest
       run: |
           pytest -s

@@ -1,10 +1,12 @@
+import random
+import pickle
+
 import torch
 import numpy as np
-import random
 import imageio
 import cv2
 
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
 def random_points_from_grid(seed=None, num_points=9, central_area_side=30, total_area_side=50):
@@ -181,7 +183,7 @@ def visual_search_display(shape_image=None, shape_bbox=None, shape_category=None
             'bbox': new_bbox
         })
         img = cv2.bitwise_or(img, new_img)
-    for i in range(total_shapes-(1 if shape_image is not None else 0)):
+    for _ in range(total_shapes-(1 if shape_image is not None else 0)):
         single_img, single_bbox = generate_single_dot_distortion(seed=None)
         to_shift_coords = (random.randint(margin,height-margin-single_img.shape[0]), random.randint(margin,width-margin-single_img.shape[1]))
         new_img = place_small_img_on_large_img(
@@ -197,7 +199,7 @@ def visual_search_display(shape_image=None, shape_bbox=None, shape_category=None
         )
         img = cv2.bitwise_or(img, new_img)
         bboxes.append({
-            'category' : 'other',
+            'category' : -1, # -1 means random category
             'bbox' : new_bbox
         })
     if draw_bboxes:
@@ -208,26 +210,30 @@ def visual_search_display(shape_image=None, shape_bbox=None, shape_category=None
 
 class DotDistortions(Dataset):
     def __init__(self,
-                 distortion_level,
-                 length,
+                 distortion_level = '3',
+                 length = 100,
                  train_like=True,
                  test_like_exists_probability = 1.0,
                  category_seeds = None,
                  num_categories = 3,
                  total_shapes = 7,
+                 torch_transform = False,
+                 use_precomputed = None,
                 ):
         '''
         PyTorch Dot Distortion Dataset generator
         
         Arguments:
         
-        distortion_level (str): defined in as 'bits per dot' in Posner, 1967 "Perceived distance and the classification of distoted patterns, Table 1. Choose from '1','2','3','4,'5','6,'7.7'
+        distortion_level (str): defined in as 'bits per dot' in Posner, 1967 "Perceived distance and the classification of distorted patterns, Table 1. Choose from '1','2','3','4,'5','6,'7.7'
         train_like (bool): if true, mimics the human training condition, where a single image with one shape is shown. If false, mimics the human testing condition, where 0 or 1 images in category of interest is shown among 7 total random shapes.
         test_like_exists_probability (float): probability of a test-like image to contain have one of the category of interest. If 0, all test-like images will contain random shapes.
         category_seeds (list[int,int,int]) : list of 3 ints, each int is a seed for the random number generator for a category. The undistorted dot shape is defined by this number only. If None, all random.
         total_shapes (int): total number of shapes to place on the test-like image
+        torch_transform (bool): if true, returns torch.Tensors instead numpy or python numbers
+        use_precomputed (path): if path is entered, will use precomputed data from that path. If None, will generate data and save a new pickled file to disk.
         '''
-        self.distortion_level = distortion_level
+        self.distortion_level = str(distortion_level)
         self.train_like = train_like
         self.test_like_exists_probability = test_like_exists_probability
         self.length = length
@@ -235,6 +241,14 @@ class DotDistortions(Dataset):
         self.num_categories = num_categories
         self.category_random_seeds = self.parse_category_seeds(category_seeds, num_categories)
         self.total_shapes = total_shapes
+        self.torch_transform = torch_transform
+        self.use_precomputed = use_precomputed
+
+        if self.use_precomputed is not None:
+            self.data = self.load_data(self.use_precomputed)
+        else:
+            self.data = None
+
 
     def parse_category_seeds(self, category_seeds, num_categories):
         if category_seeds is None:
@@ -246,28 +260,83 @@ class DotDistortions(Dataset):
 
     def __len__(self):
         return self.length
-    
-    def __getitem__(self, idx):
+
+    def generate_item(self):
         chosen_category_seed = random.choice(self.category_random_seeds)
         if self.train_like:
             img, bbox = generate_single_dot_distortion(seed=chosen_category_seed, distortion_level=self.distortion_level)
+
+            if self.torch_transform:
+                img = torch.from_numpy(img)
+                bbox = torch.tensor(bbox)
+                chosen_category_seed = torch.tensor(chosen_category_seed)
             return img, bbox, chosen_category_seed
         else:
             is_all_randoms = random.choices([True, False], weights=[1-self.test_like_exists_probability, self.test_like_exists_probability])[0]
             if not is_all_randoms:
                 # generate one shape
                 single_img, single_bbox = generate_single_dot_distortion(seed=chosen_category_seed, distortion_level=self.distortion_level)
-                final_img, final_bboxes = visual_search_display(
+                final_img, bboxes = visual_search_display(
                     shape_image = single_img,
                     shape_bbox = single_bbox,
                     shape_category = chosen_category_seed,
                     total_shapes = self.total_shapes,
                 )
             else:
-                final_img, final_bboxes = visual_search_display(
+                final_img, bboxes = visual_search_display(
                     shape_image = None,
                     shape_bbox = None,
                     shape_category = None,
                     total_shapes = self.total_shapes,
                 )
-            return final_img, final_bboxes, chosen_category_seed
+            
+            if self.torch_transform:
+                final_img = torch.from_numpy(final_img)
+                final_bboxes = torch.tensor([[bbox['bbox'][0], bbox['bbox'][1], bbox['bbox'][2], bbox['bbox'][3]] for bbox in bboxes])
+                labels = torch.tensor([bbox['category'] for bbox in bboxes])
+                #chosen_category_seed = torch.tensor(chosen_category_seed)
+            else:
+                final_img = np.array(final_img)
+                final_bboxes = [[bbox['bbox'][0], bbox['bbox'][1], bbox['bbox'][2], bbox['bbox'][3]] for bbox in bboxes]
+                labels = [bbox['category'] for bbox in bboxes]
+            return final_img, final_bboxes, labels#, chosen_category_seed
+    
+    def produce(self,path='dot_distortion_dataset.pkl'):
+        '''
+        Precompute and save data to disk
+        '''
+        data = []
+        for i in range(self.length):
+            img, bbox, label = self.generate_item()
+            data.append({
+                'image' : img,
+                'bboxes' : bbox,
+                'labels' : label
+            })
+        with open(path, 'wb') as f:
+            pickle.dump(data, f)
+        
+        self.data = data
+    
+    def save(self, path='dot_distortion_dataset.pkl'):
+        '''
+        Save data to disk
+        '''
+        with open(path, 'wb') as f:
+            pickle.dump(self.data, f)
+        
+    
+    def load(self, path):
+        with open(path, 'rb') as f:
+            data = pickle.load(f)
+        self.data = data
+
+    def __getitem__(self, idx):
+        try:
+            datum = self.data[idx]
+        except TypeError:
+            raise EmptyDatasetError("Dataset is empty. Try calling produce() on dataset")
+        return datum['image'], datum['bboxes'], datum['labels']
+
+class EmptyDatasetError(Exception):
+    pass

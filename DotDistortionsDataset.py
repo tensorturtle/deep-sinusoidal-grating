@@ -1,5 +1,7 @@
 import random
 import pickle
+from datetime import datetime
+import os
 
 import torch
 import numpy as np
@@ -8,6 +10,10 @@ import cv2
 
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
+
+normalize_transform = transforms.Compose(
+    [transforms.ConvertImageDtype(torch.float)
+    ])
 
 def random_points_from_grid(seed=None, num_points=9, central_area_side=30, total_area_side=50):
     '''
@@ -243,7 +249,10 @@ class DotDistortions(Dataset):
         self.total_shapes = total_shapes
         self.torch_transform = torch_transform
         self.use_precomputed = use_precomputed
-
+        
+        self.indexed_category_random_seeds = {str(x):i for i,x in enumerate(self.category_random_seeds)}
+        if not self.train_like:
+            self.indexed_category_random_seeds.update({'-1':len(self.indexed_category_random_seeds)}) # -1 means random category, so add it to the dict
         if self.use_precomputed is not None:
             self.data = self.load_data(self.use_precomputed)
         else:
@@ -262,24 +271,26 @@ class DotDistortions(Dataset):
         return self.length
 
     def generate_item(self):
-        chosen_category_seed = random.choice(self.category_random_seeds)
+        label = random.choice(self.category_random_seeds)
         if self.train_like:
-            img, bbox = generate_single_dot_distortion(seed=chosen_category_seed, distortion_level=self.distortion_level)
+            img, bbox = generate_single_dot_distortion(seed=label, distortion_level=self.distortion_level)
 
             if self.torch_transform:
-                img = torch.from_numpy(img)
+                img = normalize_transform(torch.from_numpy(img))
                 bbox = torch.tensor(bbox)
-                chosen_category_seed = torch.tensor(chosen_category_seed)
-            return img, bbox, chosen_category_seed
+                label = torch.tensor([self.indexed_category_random_seeds[str(label)]])
+                label = torch.flatten(label)
+
+            return img, bbox, label
         else:
             is_all_randoms = random.choices([True, False], weights=[1-self.test_like_exists_probability, self.test_like_exists_probability])[0]
             if not is_all_randoms:
                 # generate one shape
-                single_img, single_bbox = generate_single_dot_distortion(seed=chosen_category_seed, distortion_level=self.distortion_level)
+                single_img, single_bbox = generate_single_dot_distortion(seed=label, distortion_level=self.distortion_level)
                 final_img, bboxes = visual_search_display(
                     shape_image = single_img,
                     shape_bbox = single_bbox,
-                    shape_category = chosen_category_seed,
+                    shape_category = label,
                     total_shapes = self.total_shapes,
                 )
             else:
@@ -291,20 +302,24 @@ class DotDistortions(Dataset):
                 )
             
             if self.torch_transform:
-                final_img = torch.from_numpy(final_img)
+                final_img = normalize_transform(torch.from_numpy(final_img))
                 final_bboxes = torch.tensor([[bbox['bbox'][0], bbox['bbox'][1], bbox['bbox'][2], bbox['bbox'][3]] for bbox in bboxes])
-                labels = torch.tensor([bbox['category'] for bbox in bboxes])
-                #chosen_category_seed = torch.tensor(chosen_category_seed)
+                labels = torch.tensor([self.indexed_category_random_seeds[str(l)] for l in [bbox['category'] for bbox in bboxes]])
+                labels = torch.flatten(labels)
             else:
                 final_img = np.array(final_img)
                 final_bboxes = [[bbox['bbox'][0], bbox['bbox'][1], bbox['bbox'][2], bbox['bbox'][3]] for bbox in bboxes]
-                labels = [bbox['category'] for bbox in bboxes]
-            return final_img, final_bboxes, labels#, chosen_category_seed
+                labels = torch.tensor([self.indexed_category_random_seeds[str(l)] for l in [bbox['category'] for bbox in bboxes]])
+
+            return final_img, final_bboxes, labels
     
-    def produce(self,path='dot_distortion_dataset.pkl'):
+    def produce(self,path=f'temp/temp_dataset_{datetime.now().isoformat()}.pkl'):
         '''
         Precompute and save data to disk
         '''
+        if not os.path.exists('temp'):
+            os.mkdir('temp')
+
         data = []
         for i in range(self.length):
             img, bbox, label = self.generate_item()
@@ -318,7 +333,7 @@ class DotDistortions(Dataset):
         
         self.data = data
     
-    def save(self, path='dot_distortion_dataset.pkl'):
+    def save(self, path=f'temp/temp_dataset_{datetime.now().isoformat()}.pkl'):
         '''
         Save data to disk
         '''

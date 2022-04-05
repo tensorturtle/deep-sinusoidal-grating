@@ -11,7 +11,7 @@ on:
     pull_request:
         branches: [ main ]
     schedule:
-      - cron: '0 0 * * *' # daily at 00:00
+      - cron: '0 0 * * MON' # weekly on monday 00:00
 
 jobs:
   build:
